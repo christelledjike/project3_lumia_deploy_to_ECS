@@ -48,6 +48,7 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.java.binaries=target/classes
             -Dsonar.branch.name=master
+            
 
   build-push-image:
     runs-on: ubuntu-latest

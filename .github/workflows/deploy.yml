@@ -41,8 +41,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=lumia-deploy-to-ecs
-            -Dsonar.organization=lumia-ecs
+            -Dsonar.projectKey=christellea_lumia-project
+            -Dsonar.organization=christellea
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.java.binaries=target/classes
             -Dsonar.branch.name=master

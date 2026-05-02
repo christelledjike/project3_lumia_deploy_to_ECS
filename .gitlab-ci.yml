@@ -1,0 +1,55 @@
+stages:
+  - build
+  - docker
+  - deploy
+
+variables:
+  AWS_DEFAULT_REGION: "us-east-1"
+  ECR_REPOSITORY: "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/lumiatech-repo"
+  ECS_CLUSTER: "lumiatech-ecs-infra-Cluster"
+  ECS_SERVICE: "Lumiatech-ECS-Service"
+  ECS_TASK_DEFINITION: "lumiatech-task-definition"
+
+build-artifact:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - mvn clean package -DskipTests
+  artifacts:
+    paths:
+      - target/*.war
+    expire_in: 1 hour
+
+build-push-image:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - apk add --no-cache aws-cli
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY
+  script:
+    - docker build -t $ECR_REPOSITORY:$CI_COMMIT_SHORT_SHA -t $ECR_REPOSITORY:latest .
+    - docker push $ECR_REPOSITORY:$CI_COMMIT_SHORT_SHA
+    - docker push $ECR_REPOSITORY:latest
+  dependencies:
+    - build-artifact
+
+deploy-ecs:
+  stage: deploy
+  image:
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
+  before_script:
+    - yum install -y jq
+  script:
+    - |
+      TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION --region $AWS_DEFAULT_REGION)
+      NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REPOSITORY:$CI_COMMIT_SHORT_SHA" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+      aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json "$NEW_TASK_DEF"
+      aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --task-definition $ECS_TASK_DEFINITION --force-new-deployment --region $AWS_DEFAULT_REGION
+  dependencies:
+    - build-push-image
+  only:
+    - main
+    

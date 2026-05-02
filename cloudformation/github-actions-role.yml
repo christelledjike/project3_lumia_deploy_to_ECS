@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'GitHub Actions IAM Role for ECS Deployment with OIDC'
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: GitHub organization or username
+    Default: ndzenyuy
+
+  GitHubRepo:
+    Type: String
+    Description: GitHub repository name (use * for wildcard)
+    Default: project-3-deploy-to-ecs
+
+  CreateOIDCProvider:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set to 'true' only if GitHub OIDC provider does not already exist in this account
+
+Conditions:
+  ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
+
+Resources:
+
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+      Tags:
+        - Key: Name
+          Value: 'GitHub-OIDC-Provider'
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 'lumiatech-github-actions-ecs-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateOIDCProvider
+                - !GetAtt GitHubOIDCProvider.Arn
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubOrg}/${GitHubRepo}:*'
+      Policies:
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:DescribeImages
+                Resource: !Sub 'arn:aws:ecr:*:${AWS::AccountId}:repository/*'
+
+        - PolicyName: ECSDeploymentAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - ecs:DescribeTaskDefinition
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DeregisterTaskDefinition
+                  - ecs:DescribeTasks
+                  - ecs:DescribeClusters
+                  - ecs:ListClusters
+                  - ecs:ListServices
+                  - ecs:ListTasks
+                  - ecs:ListTaskDefinitions
+                Resource: '*'
+
+        - PolicyName: IAMPassRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/*'
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ecs-tasks.amazonaws.com
+
+        - PolicyName: CloudWatchLogsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                Resource: '*'
+      Tags:
+        - Key: Name
+          Value: 'lumiatech-github-actions-ecs-role'
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+  GitHubOIDCProviderArn:
+    Description: GitHub OIDC Provider ARN
+    Value: !If
+      - ShouldCreateOIDCProvider
+      - !GetAtt GitHubOIDCProvider.Arn
+      - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+    Export:
+      Name: 'lumiatech-GitHub-OIDC-Arn'
+
+  GitHubActionsRoleArn:
+    Description: IAM Role ARN to use in GitHub Actions secrets as AWS_GITHUB_ROLE
+    Value: !GetAtt GitHubActionsRole.Arn
+    Export:
+      Name: 'lumiatech-GitHub-Actions-Role-Arn'
+
+  GitHubActionsRoleName:
+    Description: IAM Role name for GitHub Actions
+    Value: !Ref GitHubActionsRole
+    Export:
+      Name: 'lumiatech-GitHub-Actions-Role-Name'

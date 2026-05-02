@@ -1,0 +1,97 @@
+apt update -y
+
+# ----------------------------------------------------
+# Install Java 17, Maven, utilities
+# ----------------------------------------------------
+echo "Installing OpenJDK 17, OpenJDK 21, Maven, and utilities..."
+sudo apt install -y \
+  openjdk-17-jdk \
+  maven \
+  wget \
+  curl \
+  gnupg \
+  tar 
+
+# ----------------------------------------------------
+# Create Tomcat user
+# ----------------------------------------------------
+echo "Creating tomcat user..."
+useradd -r -m -U -d /opt/apache-tomcat-9.0.96 -s /bin/false tomcat || true
+
+# ----------------------------------------------------
+# Install Tomcat 9
+# ----------------------------------------------------
+echo "Downloading Tomcat 9.0.96..."
+cd /tmp
+wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.96/bin/apache-tomcat-9.0.96.tar.gz
+
+echo "Extracting Tomcat..."
+tar xf apache-tomcat-9.0.96.tar.gz -C /opt/
+
+chown -R tomcat:tomcat /opt/apache-tomcat-9.0.96
+chmod +x /opt/apache-tomcat-9.0.96/bin/*.sh
+
+# ----------------------------------------------------
+# Create Tomcat systemd service (Java 17)
+# ----------------------------------------------------
+echo "Creating Tomcat systemd service..."
+cat <<EOF > /etc/systemd/system/tomcat9.service
+[Unit]
+Description=Apache Tomcat 9
+After=network.target
+
+[Service]
+Type=forking
+User=tomcat
+Group=tomcat
+
+Environment="JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64"
+Environment="CATALINA_HOME=/opt/apache-tomcat-9.0.96"
+Environment="CATALINA_BASE=/opt/apache-tomcat-9.0.96"
+Environment="CATALINA_PID=/opt/apache-tomcat-9.0.96/temp/tomcat.pid"
+Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC \
+--add-opens java.base/java.lang=ALL-UNNAMED \
+--add-opens java.base/java.lang.invoke=ALL-UNNAMED \
+--add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+--add-opens java.base/java.io=ALL-UNNAMED \
+--add-opens java.base/java.security=ALL-UNNAMED \
+--add-opens java.base/java.util=ALL-UNNAMED \
+--add-opens java.base/java.util.concurrent=ALL-UNNAMED \
+--add-opens java.rmi/sun.rmi.transport=ALL-UNNAMED"
+
+ExecStart=/opt/apache-tomcat-9.0.96/bin/startup.sh
+ExecStop=/opt/apache-tomcat-9.0.96/bin/shutdown.sh
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable tomcat9
+systemctl start tomcat9
+
+# Install Docker
+
+sudo apt remove $(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc podman-docker containerd runc | cut -f1)
+
+# Add Docker's official GPG key:
+sudo apt update
+sudo apt install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin

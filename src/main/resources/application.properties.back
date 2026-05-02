@@ -1,0 +1,79 @@
+#################################################
+# DATASOURCE (Spring Boot compliant)
+#################################################
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.url=jdbc:mysql://lumiatech-rds-cluster.cm38hcjhqkt1.us-east-1.rds.amazonaws.com:3306/accounts?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=UTC
+spring.datasource.username=admin
+spring.datasource.password=admin123
+
+# Connection pool (important on EB)
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.pool-name=HikariCP
+
+#################################################
+# JPA / HIBERNATE
+#################################################
+spring.jpa.database-platform=org.hibernate.dialect.MySQL8Dialect
+spring.jpa.hibernate.ddl-auto=none
+spring.jpa.open-in-view=false
+
+# TEMPORARY (for troubleshooting – turn OFF later)
+spring.jpa.show-sql=true
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE
+
+#################################################
+# SPRING SECURITY (CRITICAL FIX)
+#################################################
+# ❌ REMOVE in-memory authentication completely
+# spring.security.user.name=admin_vp
+# spring.security.user.password=admin_vp
+# spring.security.user.roles=ADMIN
+
+#################################################
+# SECURITY DEBUGGING (TEMPORARY)
+#################################################
+logging.level.org.springframework.security=DEBUG
+logging.level.org.springframework.security.authentication=DEBUG
+logging.level.org.springframework.security.web.FilterChainProxy=DEBUG
+logging.level.org.springframework.security.web.authentication=DEBUG
+
+# Your custom UserDetailsService
+logging.level.com.visualpathit.account.service.SecurityServiceImpl=DEBUG
+
+#################################################
+# MVC (JSP)
+#################################################
+spring.mvc.view.prefix=/WEB-INF/views/
+spring.mvc.view.suffix=.jsp
+
+#################################################
+# FILE UPLOAD
+#################################################
+spring.servlet.multipart.max-file-size=128KB
+spring.servlet.multipart.max-request-size=128KB
+
+#################################################
+# MEMCACHED
+#################################################
+memcached.active.host=lumiatech-memecache.idtnoc.cfg.use1.cache.amazonaws.com
+memcached.active.port=11211
+memcached.standBy.host=127.0.0.2
+memcached.standBy.port=11211
+
+#################################################
+# RABBITMQ
+#################################################
+rabbitmq.address=b-bc2b8f3a-7be1-403d-97db-48497cea1c7f.mq.us-east-1.on.aws
+rabbitmq.port=5671
+rabbitmq.username=rabbit
+rabbitmq.password=$vgq3d4oFL0^FuXH
+
+#################################################
+# ELASTICSEARCH (legacy config – no REST client)
+#################################################
+elasticsearch.host=localhost
+elasticsearch.port=9300
+elasticsearch.cluster=vprofile
+elasticsearch.node=vprofilenode

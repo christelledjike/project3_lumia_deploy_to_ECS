@@ -12,6 +12,8 @@ env:
   ECS_SERVICE: "Lumiatech-ECS-Service"
   ECS_TASK_DEFINITION: "lumiatech-task-definition"
 
+
+
 jobs:
   scan-artifact:
     runs-on: ubuntu-latest
